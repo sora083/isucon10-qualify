@@ -1082,14 +1082,14 @@ func selectEstatesForGeo(coordinates *Coordinates) ([]Estate, error) {
 	b := coordinates.getBoundingBox()
 	estates := []Estate{}
 	query := fmt.Sprintf(`SELECT id, name, description, thumbnail, address, latitude, longitude, rent, door_height, door_width, features, popularity FROM estate 
-                           WHERE  ST_Contains(ST_PolygonFromText(%s), ST_GeomFromText(concat('POINT(', latitude, ' ', longitude, ')')))
+                           WHERE  ST_Contains(ST_PolygonFromText(%s), geo_point)
                              AND id IN (
                                    SELECT id FROM estate
                                     WHERE latitude <= ? AND latitude >= ? AND longitude <= ? AND longitude >= ?)
-                           ORDER BY popularity_desc ASC, id ASC`,
+                           ORDER BY popularity_desc ASC, id ASC LIMIT ?`,
 		coordinates.coordinatesToText())
 
-	err := db.Select(&estates, query, b.BottomRightCorner.Latitude, b.TopLeftCorner.Latitude, b.BottomRightCorner.Longitude, b.TopLeftCorner.Longitude)
+	err := db.Select(&estates, query, b.BottomRightCorner.Latitude, b.TopLeftCorner.Latitude, b.BottomRightCorner.Longitude, b.TopLeftCorner.Longitude, NazotteLimit)
 	return estates, err
 }
 

@@ -18,7 +18,9 @@ CREATE TABLE isuumo.estate
     door_width  INTEGER             NOT NULL,
     features    VARCHAR(64)         NOT NULL,
     popularity  INTEGER             NOT NULL,
-    popularity_desc INTEGER AS (-popularity) NOT NULL -- generated column でカラムを追加する
+    popularity_desc INTEGER AS (-popularity) NOT NULL, -- generated column でカラムを追加する
+    geo_point GEOMETRY AS (ST_GeometryFromText(CONCAT('POINT(', latitude, ' ', longitude, ')'))) STORED NOT NULL,
+    SPATIAL INDEX (geo_point)
 );
 
 -- Add index
