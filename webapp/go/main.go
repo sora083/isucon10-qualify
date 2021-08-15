@@ -35,10 +35,9 @@ var estateSearchCondition EstateSearchCondition
 var chairsMap map[string][]Chair
 var chairMap map[int]Chair
 var lowPriceChairMap map[string][]Chair
-
-// var estatesMap map[string][]Estate
-// var estateMap map[int]Estate
-// var lowPriceEstateMap map[string][]Estate
+var estatesMap map[string][]Estate
+var estateMap map[int]Estate
+var lowPriceEstateMap map[string][]Estate
 
 type InitializeResponse struct {
 	Language string `json:"language"`
@@ -254,9 +253,9 @@ func init() {
 	chairsMap = map[string][]Chair{}
 	chairMap = map[int]Chair{}
 	lowPriceChairMap = map[string][]Chair{}
-	// estatesMap = map[string][]Estate{}
-	// estateMap = map[int]Estate{}
-	// lowPriceEstateMap = map[string][]Estate{}
+	estatesMap = map[string][]Estate{}
+	estateMap = map[int]Estate{}
+	lowPriceEstateMap = map[string][]Estate{}
 }
 
 func main() {
@@ -316,9 +315,9 @@ func initialize(c echo.Context) error {
 	chairsMap = map[string][]Chair{}
 	chairMap = map[int]Chair{}
 	lowPriceChairMap = map[string][]Chair{}
-	// estatesMap = map[string][]Estate{}
-	// estateMap = map[int]Estate{}
-	// lowPriceEstateMap = map[string][]Estate{}
+	estatesMap = map[string][]Estate{}
+	estateMap = map[int]Estate{}
+	lowPriceEstateMap = map[string][]Estate{}
 
 	sqlDir := filepath.Join("..", "mysql", "db")
 	paths := []string{
@@ -666,6 +665,11 @@ func getEstateDetail(c echo.Context) error {
 	}
 
 	var estate Estate
+	// キャッシュがあればキャッシュから取得
+	if v, ok := estateMap[id]; ok {
+		estate = v
+		return c.JSON(http.StatusOK, estate)
+	}
 	err = db.Get(&estate, "SELECT id, name, description, thumbnail, address, latitude, longitude, rent, door_height, door_width, features, popularity FROM estate WHERE id = ?", id)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -675,6 +679,7 @@ func getEstateDetail(c echo.Context) error {
 		c.Echo().Logger.Errorf("Database Execution error : %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+	estateMap[id] = estate // キャッシュの更新
 
 	return c.JSON(http.StatusOK, estate)
 }
@@ -744,12 +749,21 @@ func postEstate(c echo.Context) error {
 		c.Logger().Errorf("failed to commit tx: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+	estatesMap = map[string][]Estate{} // キャッシュの更新
+	delete(lowPriceEstateMap, "v")     //　最低価格の物件のキャッシュクリア
 	return c.NoContent(http.StatusCreated)
 }
 
 func searchEstates(c echo.Context) error {
 	conditions := make([]string, 0)
 	params := make([]interface{}, 0)
+
+	// キャッシュがあればそれを返す
+	var res EstateSearchResponse
+	if v, ok := estatesMap[c.QueryString()]; ok {
+		res.Estates = v
+		return c.JSON(http.StatusOK, res)
+	}
 
 	if c.QueryParam("doorHeightRangeId") != "" {
 		doorHeight, err := getRange(estateSearchCondition.DoorHeight, c.QueryParam("doorHeightRangeId"))
@@ -831,7 +845,7 @@ func searchEstates(c echo.Context) error {
 	searchCondition := strings.Join(conditions, " AND ")
 	limitOffset := " ORDER BY popularity_desc ASC, id ASC LIMIT ? OFFSET ?"
 
-	var res EstateSearchResponse
+	//var res EstateSearchResponse
 	err = db.Get(&res.Count, countQuery+searchCondition, params...)
 	if err != nil {
 		c.Logger().Errorf("searchEstates DB execution error : %v", err)
@@ -849,6 +863,8 @@ func searchEstates(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	estatesMap[c.QueryString()] = estates // キャッシュのセット
+
 	res.Estates = estates
 
 	return c.JSON(http.StatusOK, res)
@@ -856,6 +872,11 @@ func searchEstates(c echo.Context) error {
 
 func getLowPricedEstate(c echo.Context) error {
 	estates := make([]Estate, 0, Limit)
+	// 最低価格の物件のキャッシュがあればそれを返す
+	if v, ok := lowPriceEstateMap["v"]; ok {
+		estates = v
+		return c.JSON(http.StatusOK, EstateListResponse{Estates: estates})
+	}
 	query := `SELECT id, name, description, thumbnail, address, latitude, longitude, rent, door_height, door_width, features, popularity FROM estate ORDER BY rent ASC, id ASC LIMIT ?`
 	err := db.Select(&estates, query, Limit)
 	if err != nil {
@@ -866,6 +887,7 @@ func getLowPricedEstate(c echo.Context) error {
 		c.Logger().Errorf("getLowPricedEstate DB execution error : %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+	lowPriceEstateMap["v"] = estates
 
 	return c.JSON(http.StatusOK, EstateListResponse{Estates: estates})
 }
