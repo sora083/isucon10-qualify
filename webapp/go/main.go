@@ -31,6 +31,15 @@ var mySQLConnectionData *MySQLConnectionEnv
 var chairSearchCondition ChairSearchCondition
 var estateSearchCondition EstateSearchCondition
 
+// for cache
+var chairsMap map[string][]Chair
+var chairMap map[int]Chair
+var lowPriceChairMap map[string][]Chair
+
+// var estatesMap map[string][]Estate
+// var estateMap map[int]Estate
+// var lowPriceEstateMap map[string][]Estate
+
 type InitializeResponse struct {
 	Language string `json:"language"`
 }
@@ -240,6 +249,14 @@ func init() {
 		os.Exit(1)
 	}
 	json.Unmarshal(jsonText, &estateSearchCondition)
+
+	// キャッシュの初期化
+	chairsMap = map[string][]Chair{}
+	chairMap = map[int]Chair{}
+	lowPriceChairMap = map[string][]Chair{}
+	// estatesMap = map[string][]Estate{}
+	// estateMap = map[int]Estate{}
+	// lowPriceEstateMap = map[string][]Estate{}
 }
 
 func main() {
@@ -295,6 +312,14 @@ func main() {
 }
 
 func initialize(c echo.Context) error {
+	// キャッシュの初期化
+	chairsMap = map[string][]Chair{}
+	chairMap = map[int]Chair{}
+	lowPriceChairMap = map[string][]Chair{}
+	// estatesMap = map[string][]Estate{}
+	// estateMap = map[int]Estate{}
+	// lowPriceEstateMap = map[string][]Estate{}
+
 	sqlDir := filepath.Join("..", "mysql", "db")
 	paths := []string{
 		filepath.Join(sqlDir, "0_Schema.sql"),
@@ -401,12 +426,21 @@ func postChair(c echo.Context) error {
 		c.Logger().Errorf("failed to commit tx: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+	chairsMap = map[string][]Chair{} // キャッシュクリア
+	delete(chairsMap, "v")           // 最低価格のイスのキャッシュクリア
 	return c.NoContent(http.StatusCreated)
 }
 
 func searchChairs(c echo.Context) error {
 	conditions := make([]string, 0)
 	params := make([]interface{}, 0)
+
+	var res ChairSearchResponse
+	// キャッシュがあればキャッシュから取得
+	if v, ok := chairsMap[c.QueryString()]; ok {
+		res.Chairs = v
+		return c.JSON(http.StatusOK, res)
+	}
 
 	if c.QueryParam("priceRangeId") != "" {
 		chairPrice, err := getRange(chairSearchCondition.Price, c.QueryParam("priceRangeId"))
@@ -517,7 +551,7 @@ func searchChairs(c echo.Context) error {
 	searchCondition := strings.Join(conditions, " AND ")
 	limitOffset := " ORDER BY popularity DESC, id ASC LIMIT ? OFFSET ?"
 
-	var res ChairSearchResponse
+	//var res ChairSearchResponse
 	err = db.Get(&res.Count, countQuery+searchCondition, params...)
 	if err != nil {
 		c.Logger().Errorf("searchChairs DB execution error : %v", err)
@@ -534,6 +568,9 @@ func searchChairs(c echo.Context) error {
 		c.Logger().Errorf("searchChairs DB execution error : %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+
+	// キャッシュに保存
+	chairsMap[c.QueryString()] = chairs
 
 	res.Chairs = chairs
 
@@ -589,6 +626,10 @@ func buyChair(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	chairsMap = map[string][]Chair{} // キャッシュクリア
+	if chair.Stock <= 1 {
+		delete(lowPriceChairMap, "v") // 最低価格のイスのキャッシュクリア(ここがキモかも？)
+	}
 	return c.NoContent(http.StatusOK)
 }
 
@@ -598,6 +639,11 @@ func getChairSearchCondition(c echo.Context) error {
 
 func getLowPricedChair(c echo.Context) error {
 	var chairs []Chair
+	// キャッシュがあればキャッシュから取得
+	if v, ok := lowPriceChairMap["v"]; ok {
+		chairs = v
+		return c.JSON(http.StatusOK, ChairListResponse{Chairs: chairs})
+	}
 	query := `SELECT * FROM chair WHERE stock > 0 ORDER BY price ASC, id ASC LIMIT ?`
 	err := db.Select(&chairs, query, Limit)
 	if err != nil {
@@ -608,7 +654,7 @@ func getLowPricedChair(c echo.Context) error {
 		c.Logger().Errorf("getLowPricedChair DB execution error : %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
-
+	lowPriceChairMap["v"] = chairs // 最低価格のイスのキャッシュの更新
 	return c.JSON(http.StatusOK, ChairListResponse{Chairs: chairs})
 }
 
