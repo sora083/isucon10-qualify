@@ -22,10 +22,11 @@ CREATE TABLE isuumo.estate
 );
 
 -- Add index
-ALTER TABLE isuumo.estate ADD INDEX idx_estate_rent_id(rent, id);
-ALTER TABLE isuumo.estate ADD INDEX idx_estate_popularity_id(popularity_desc, id);
+ALTER TABLE isuumo.estate ADD INDEX idx_estate_rent(rent);
+ALTER TABLE isuumo.estate ADD INDEX idx_estate_popularity(popularity_desc);
 ALTER TABLE isuumo.estate ADD INDEX idx_estate_rent_door_width(rent, door_width);
 ALTER TABLE isuumo.estate ADD INDEX idx_estate_rent_door_height(rent, door_height);
+ALTER TABLE isuumo.estate ADD INDEX idx_estate_laitiude_longitude(latitude, longitude);
 
 
 CREATE TABLE isuumo.chair
@@ -46,7 +47,7 @@ CREATE TABLE isuumo.chair
 );
 
 -- Add index
-ALTER TABLE isuumo.chair ADD INDEX idx_chair_price_id(price, id);
+ALTER TABLE isuumo.chair ADD INDEX idx_chair_price(price);
 ALTER TABLE isuumo.chair ADD INDEX idx_chair_price_stock(price, stock);
 ALTER TABLE isuumo.chair ADD INDEX idx_chair_height_stock(height, stock);
 ALTER TABLE isuumo.chair ADD INDEX idx_chair_kind_stock(kind, stock);
