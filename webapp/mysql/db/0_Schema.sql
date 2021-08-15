@@ -17,7 +17,8 @@ CREATE TABLE isuumo.estate
     door_height INTEGER             NOT NULL,
     door_width  INTEGER             NOT NULL,
     features    VARCHAR(64)         NOT NULL,
-    popularity  INTEGER             NOT NULL
+    popularity  INTEGER             NOT NULL,
+    popularity_desc INTEGER AS (-popularity) NOT NULL -- generated column でカラムを追加する
 );
 
 CREATE TABLE isuumo.chair
@@ -36,3 +37,8 @@ CREATE TABLE isuumo.chair
     popularity  INTEGER         NOT NULL,
     stock       INTEGER         NOT NULL
 );
+
+-- Add index
+ALTER TABLE isuumo.chair ADD INDEX idx_chair_price_id(price, id); 
+ALTER TABLE isuumo.estate ADD INDEX idx_estate_rent_id(rent, id);
+ALTER TABLE isuumo.estate ADD INDEX idx_estate_popularity_id(popularity_desc, id);
