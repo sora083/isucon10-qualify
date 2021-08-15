@@ -945,7 +945,7 @@ func selectEstatesForGeo(coordinates *Coordinates) ([]Estate, error) {
                              AND id IN (
                                    SELECT id FROM estate
                                     WHERE latitude <= ? AND latitude >= ? AND longitude <= ? AND longitude >= ?)
-                           ORDER BY popularity DESC, id ASC`,
+                           ORDER BY popularity_desc ASC, id ASC`,
 		coordinates.coordinatesToText())
 
 	err := db.Select(&estates, query, b.BottomRightCorner.Latitude, b.TopLeftCorner.Latitude, b.BottomRightCorner.Longitude, b.TopLeftCorner.Longitude)
